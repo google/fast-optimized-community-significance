@@ -1,0 +1,41 @@
+MtSigCommSingle            package:sigcomm             R Documentation
+
+_C_o_m_p_u_t_e _s_t_a_t_i_s_t_i_c_a_l _s_i_g_n_i_f_i_c_a_n_c_e _o_f _a _s_i_n_g_l_e _c_o_m_m_u_n_i_t_y.
+
+_D_e_s_c_r_i_p_t_i_o_n:
+
+     Compute statistical significance of a single community.
+
+_U_s_a_g_e:
+
+     MtSigCommSingle(group_s, G, adjG, edges, d, N, m, version = 3,
+       borderp = 0.25, nmcsims = 100, return_mean = FALSE)
+     
+_A_r_g_u_m_e_n_t_s:
+
+ group_s: (integer) The community.
+
+       G: (igraph) The network in igraph format.
+
+    adjG: (dgCMatrix) The adjacency matrix of the network.
+
+   edges: (integer matrix) The edgelist of the network.
+
+       d: (integer) The degree vector of the network.
+
+       N: (integer) The number of nodes in the network.
+
+       m: (integer) Twice the number of edges in the network.
+
+ version: (integer, default: 3) Version of the method to use.
+
+ borderp: (double, default: 0.25) Proportion of community to use as the
+          border.
+
+ nmcsims: (integer, default: 100) Number of monte carlo simulations of
+          p-values to produce.
+
+return_mean: (bool, default: FALSE) Whether to return mean or median of
+          mc p-values.
+
+

@@ -1,10 +1,21 @@
 Package: sigcomm
-Title: What the Package Does (one line, title case)
-Version: 0.0.0.9000
-Authors@R: person("First", "Last", email = "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
+Title: "Multiple-Testing Significance Method for Communities in Networks"
+Version: 0.0.0.9001
+Authors@R: person("John", "Palowitch", email = "johnpalowitch@gmail.com", role = c("aut", "cre"))
+Description: Provides a single function to compute the statistical significance
+    of given communities in networks. The method is described as "multiple-testing"
+    due to the nature of the significance computation algorithm itself - not
+    because the method applies multiple testing corrections over communities,
+    or over networks. Also, the method is not in any way related to multiple-testing-based
+    methods for community *detection* (Wilson 2013, Wilson 2016, Palowitch 2017) - 
+    this method assumes communities have already been discovered (e.g. via
+    modularity optimization) and gives significance values to those communities.
 Depends: R (>= 3.4.4)
-License: What license is it under?
+Imports:
+    igraph,
+    Matrix
+License: (unlicensed)
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 6.0.1
+Suggests: testthat
