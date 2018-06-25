@@ -29,26 +29,26 @@
   commOutDegT2 <- commOutDegT - commOutDegrees[comm] + commInDegrees[comm]
   commDegT2 <- commDegT - d[comm]
   extDeg2 <- 2 * m - commDegT2
-  p_scores <- phyper(commInDegrees[comm] - 1, commOutDegT2, 
+  pScores <- phyper(commInDegrees[comm] - 1, commOutDegT2, 
                      extDeg2 - commOutDegT2, d[comm], lower.tail=FALSE)
-  worst_node <- comm[which.max(p_scores)]
+  worst_node <- comm[which.max(pScores)]
 
   cs <- numeric(nmcsims)
   commc <- setdiff(nodes, comm)
-  p_scoresU <- phyper(commInDegrees[comm] - 1, commOutDegT2, 
+  pScoresU <- phyper(commInDegrees[comm] - 1, commOutDegT2, 
                       extDeg2 - commOutDegT2, d[comm], lower.tail=FALSE)
-  p_scoresL <- phyper(commInDegrees[comm], commOutDegT2,
+  pScoresL <- phyper(commInDegrees[comm], commOutDegT2,
                       extDeg2 - commOutDegT2, d[comm], lower.tail=FALSE)
     
   for (counter in 1:nmcsims) {    
     # Getting random SOCS scores
-    rand_p_scores <- runif(length(comm), p_scoresL, p_scoresU)
-    ntest <- ceiling(length(comm) * borderp)
-    scs <- numeric(ntest)
-    p_score_sort <- sort(rand_p_scores, decreasing=TRUE)
-    inv.p <- (1 - p_score_sort[1:ntest]) / (1 - p_score_sort[2:(ntest + 1)])
-    scs <- 1 - inv.p^(N - length(comm) + 2:(ntest + 1))
-    cs[counter] <- min(scs) * ntest      
+    pScoresRand <- runif(length(comm), pScoresL, pScoresU)
+    k <- ceiling(length(comm) * borderp)
+    scs <- numeric(k)
+    pScoresSort <- sort(pScoresRand, decreasing=TRUE)
+    invP <- (1 - pScoresSort[1:k]) / (1 - pScoresSort[2:(k + 1)])
+    scs <- 1 - invP^(N - length(comm) + 2:(k + 1))
+    cs[counter] <- min(scs) * k      
   }
 
   return(median(cs))      
@@ -61,7 +61,7 @@
 #' @param borderp (double, default: 0.25) Proportion of community to use as the border.
 #' @param nmcsims (integer, default: 100) Number of monte carlo simulations of p-values to produce.
 #' @export
-MtSigComm <- function (community_list, network, borderp=0.25, nmcsims=100) {
+SOCS <- function (community_list, network, borderp=0.25, nmcsims=100) {
 
   # Computing network statistics
   adj <- get.adjacency(network)
