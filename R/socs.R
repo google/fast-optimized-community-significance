@@ -1,81 +1,108 @@
-#' Compute statistical significance of a single community.
+#' Compute significance of a single community.
 #'
 #' @param comm (integer) The community.
-#' @param G (igraph) The network in igraph format.
 #' @param adjG (dgCMatrix) The adjacency matrix of the network.
 #' @param edges (integer matrix) The edgelist of the network.
 #' @param d (integer) The degree vector of the network.
 #' @param N (integer) The number of nodes in the network.
 #' @param m (integer) Twice the number of edges in the network.
-#' @param version (integer, default: 3) Version of the method to use.
-#' @param borderp (double, default: 0.25) Proportion of community to use as the border.
-#' @param nmcsims (integer, default: 100) Number of monte carlo simulations of p-values to produce.
-#' @param return_mean (bool, default: FALSE) Whether to return mean or median of mc p-values.
-.SOCS <- function (comm, adjG, edges, d, N, m, borderp=0.25, nmcsims=100) { 
+#' @param nrand (integer, default: 100) Number of random choices of the p-scores.
+.fScore <- function (comm, adjG, edges, d, N, m, nrand) { 
 
-  if (length(comm) < 3)
-    return(1)
-  
-  # Computing basic values
-  nodes <- 1:N
-  commInDegrees <- Matrix::colSums(adjG[comm, ])
-  commOutDegrees <- d - commInDegrees
-  commInDegT <- sum(commInDegrees[comm])
-  commDegT <- sum(d[comm])
-  commOutDegT <- commDegT - commInDegT
-  extDeg <- 2 * m - commDegT
-  
-  # Getting r-scores
-  commOutDegT2 <- commOutDegT - commOutDegrees[comm] + commInDegrees[comm]
-  commDegT2 <- commDegT - d[comm]
-  extDeg2 <- 2 * m - commDegT2
-  pScores <- phyper(commInDegrees[comm] - 1, commOutDegT2, 
-                     extDeg2 - commOutDegT2, d[comm], lower.tail=FALSE)
-  worst_node <- comm[which.max(pScores)]
+  # Compute basic values.
+  d_u_Cs <- Matrix::colSums(adjG[comm, ])
+  d_u_Cprimes <- d - d_u_Cs
+  d_C <- sum(d[comm])
+  d_C_C <- sum(d_u_Cs[comm])
+  d_C_Cprime <- d_C - d_C_C
+  d_Cprime_Cprime <- sum(d) - d_C - d_C_Cprime
+  NC <- length(comm)
 
-  cs <- numeric(nmcsims)
-  commc <- setdiff(nodes, comm)
-  pScoresU <- phyper(commInDegrees[comm] - 1, commOutDegT2, 
-                      extDeg2 - commOutDegT2, d[comm], lower.tail=FALSE)
-  pScoresL <- phyper(commInDegrees[comm], commOutDegT2,
-                      extDeg2 - commOutDegT2, d[comm], lower.tail=FALSE)
-    
-  for (counter in 1:nmcsims) {    
-    # Getting random SOCS scores
-    pScoresRand <- runif(length(comm), pScoresL, pScoresU)
-    k <- ceiling(length(comm) * borderp)
-    scs <- numeric(k)
-    pScoresSort <- sort(pScoresRand, decreasing=TRUE)
-    invP <- (1 - pScoresSort[1:k]) / (1 - pScoresSort[2:(k + 1)])
-    scs <- 1 - invP^(N - length(comm) + 2:(k + 1))
-    cs[counter] <- min(scs) * k      
+
+  # Compute p-scores.
+  pScores <- phyper(q=d_u_Cs[comm] - 1,
+                    m=d_C_Cprime - d_u_Cprimes[comm],  
+                      # white balls: edges coming out of C.
+                      # subtraction removes out-degree of community nodes.
+                    n=d_Cprime_Cprime + d_u_Cprimes[comm], 
+                      # black balls: edges totally outside C.
+                      # addition adds in out-degree of community nodes.
+                    k=d[comm],
+                    lower.tail=FALSE)
+
+  # Find worst node indexs.
+  pScoresOrd <- order(pScores, decreasing=TRUE)
+  w <- comm[pScoresOrd[1]]
+  v <- comm[pScoresOrd[2]]
+
+
+  # Compute lower/upper pScore bounds for w and v with w removed.
+  pU <- phyper(d_u_Cs[c(w, v)] - 1, 
+               d_C_Cprime - d_u_Cprimes[w],
+               d_Cprime_Cprime + d_u_Cprimes[w],
+               d[c(w, v)], lower.tail=FALSE)
+  pL <- phyper(d_u_Cs[c(w, v)], 
+               d_C_Cprime - d_u_Cprimes[w],
+               d_Cprime_Cprime + d_u_Cprimes[w],
+               d[c(w, v)], lower.tail=FALSE)
+
+  # Get random pscores and compute test.
+  cs <- numeric(nrand)
+  for (counter in 1:nrand) {    
+    pRand <- runif(2, pL, pU)
+    if (pRand[1] > pRand[2]) {
+      cs[counter] <- 1 - ((1 - pRand[1]) / (1 - pRand[2]))^(N - NC + 1)
+    } else {
+      cs[counter] <- 1 - ((1 - pRand[2]) / (1 - pRand[1]))^(N - NC + 1)
+    }
   }
 
-  return(median(cs))      
+  # Return.
+  return(list(scores=cs, worst=w))
 }
 
-#' Compute statistical significance of a single community.
+#' FOCS backend.
 #'
-#' @param community_list (list of integers) List of communities to compute significance of.
-#' @param network (igraph) The network in igraph format.
-#' @param borderp (double, default: 0.25) Proportion of community to use as the border.
-#' @param nmcsims (integer, default: 100) Number of monte carlo simulations of p-values to produce.
-#' @export
-SOCS <- function (community_list, network, borderp=0.25, nmcsims=100) {
-
-  # Computing network statistics
-  adj <- get.adjacency(network)
-  d <- degree(network)
-  N <- length(V(network))
-  edges <- get.edgelist(network)
-  m <- nrow(edges)
-
-  K <- length(community_list)
-  pvals <- numeric(K)
-  for (i in 1:K) {
-    pvals[i] <- MtSigCommSingle(community_list[[i]], adj, edges, d, N, m,
-                                borderp=borderp, nmcsims=nmcscims)
+#' @param comm (integer) The community.
+#' @param adjG (dgCMatrix) The adjacency matrix of the network.
+#' @param edges (integer matrix) The edgelist of the network.
+#' @param d (integer) The degree vector of the network.
+#' @param N (integer) The number of nodes in the network.
+#' @param m (integer) Twice the number of edges in the network.
+#' @param p (double, default: 0.25) Proportion of community to use as the border.
+#' @param nrand (integer, default: 100) Number of random choices of the p-scores.
+.focs <- function (comm, adjG, edges, d, N, m, p=0.25, nrand=100) { 
+  if (length(comm) < 3) {
+    return(1)
   }
+  
+  nodes <- 1:N
+  k <- counter <- ceiling(length(comm) * p)
+  fMat <- matrix(0, nrow=nrand, ncol=k)
 
-  return(pvals)
+  for (i in 1:k) {
+    fScoreList <- .fScore(comm, adjG, edges, d, N, m, nrand)
+    fMat[, i] <- fScoreList$scores
+    comm <- setdiff(comm, fScoreList$worst)
+  }
+  minFScores <- as.vector(apply(fMat, 1, min))
+  return(median(minFScores))
+}
+
+
+#' Run FOCS significance computation on a list of communities.
+#'
+#' @param community_list (list of int vectors) List of communities to compute significance of.
+#' @param network (igraph) The network in igraph format.
+#' @param p (double, default: 0.25) Proportion of community to use as the border.
+#' @param nrand (integer, default: 100) Number of random choices of the p-scores.
+#' @export
+FOCS <- function (community_list, network, p=0.25, nrand=100) {
+  adj <- igraph::get.adjacency(network)
+  d <- igraph::degree(network)
+  N <- length(igraph::V(network))
+  edges <- igraph::get.edgelist(network)
+  m <- nrow(edges)
+  scores <- lapply(community_list, .focs, adj, edges, d, N, m, p, nrand)
+  return(scores)
 }
