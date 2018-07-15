@@ -1,15 +1,10 @@
-Package: sigcomm
-Title: "Multiple-Testing Significance Method for Communities in Networks"
-Version: 0.0.0.9001
+Package: rfocs
+Title: "Fast Optimized Community Significance in R"
+Version: 0.1.0
 Authors@R: person("John", "Palowitch", email = "johnpalowitch@gmail.com", role = c("aut", "cre"))
 Description: Provides a single function to compute the statistical significance
-    of given communities in networks. The method is described as "multiple-testing"
-    due to the nature of the significance computation algorithm itself - not
-    because the method applies multiple testing corrections over communities,
-    or over networks. Also, the method is not in any way related to multiple-testing-based
-    methods for community *detection* (Wilson 2013, Wilson 2016, Palowitch 2017) - 
-    this method assumes communities have already been discovered (e.g. via
-    modularity optimization) and gives significance values to those communities.
+    of given communities in networks. See arxiv/1807.02930 for summary and 
+    details.
 Depends: R (>= 3.4.4)
 Imports:
     igraph,
