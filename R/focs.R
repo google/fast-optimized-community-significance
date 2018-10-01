@@ -31,8 +31,7 @@
   d_C_Cprime <- d_C - d_C_C
   d_Cprime_Cprime <- sum(d) - d_C - d_C_Cprime
   NC <- length(comm)
-
-
+  
   # Compute p-scores.
   pScores <- phyper(q=d_u_Cs[comm] - 1,
                     m=d_C_Cprime - d_u_Cprimes[comm],  
@@ -103,19 +102,24 @@
   return(median(minFScores))
 }
 
-
 #' Run FOCS significance computation on a list of communities.
 #'
 #' @param community_list (list of int vectors) List of communities to compute significance of.
-#' @param network (igraph) The network in igraph format.
+#' @param edges (2/3-column integer matrix) Rows are edge indexes and (optionally) edge weight.
 #' @param p (double, default: 0.25) Proportion of community to use as the border.
 #' @param nrand (integer, default: 100) Number of random choices of the p-scores.
 #' @export
-FOCS <- function (community_list, network, p=0.25, nrand=100) {
-  adj <- igraph::get.adjacency(network)
-  d <- igraph::degree(network)
-  N <- length(igraph::V(network))
-  edges <- igraph::get.edgelist(network)
+FOCS <- function (community_list, edges, p=0.25, nrand=100) {
+  N <- max(edges[, c(1:2)])
+  if (ncol(edges) == 2) {
+    values <- rep(1, nrow(edges))
+  } else {
+    values <- edges[, 3]
+  }
+  adj <- Matrix::sparseMatrix(i=edges[, 1], j=edges[, 2],
+                              x=values, dims=c(N, N), symmetric=TRUE)
+  d <- Matrix::colSums(adj)
+  N <- length(d)
   m <- nrow(edges)
   scores <- lapply(community_list, .focs, adj, edges, d, N, m, p, nrand)
   return(scores)
