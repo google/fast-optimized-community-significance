@@ -90,7 +90,10 @@
   }
   
   nodes <- 1:N
-  k <- counter <- ceiling(length(comm) * p)
+  k <- round(length(comm) * p)
+  if (k == 0) {
+    k <- 1
+  }
   fMat <- matrix(0, nrow=nrand, ncol=k)
 
   for (i in 1:k) {
