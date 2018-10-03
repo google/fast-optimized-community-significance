@@ -120,7 +120,7 @@ test_that("p-score function works on small clique graph.", {
   # Some constant values:
   #   C' has 5 * 4 = 20 stubs.
   #   C  has 0 outgoing stubs.
-  #   Removing any nodes adds 2 outgoing stubs to C.
+  #   Removing any node adds 2 outgoing stubs to C.
   #   Every node also has 2 outgoing stubs.
   #   So the p-scores should be identically:
   #     phyper(2 - 1, 2, 20, 2, lower.tail=FALSE) = 0.004329004
@@ -133,4 +133,32 @@ test_that("p-score function works on small clique graph.", {
   expect_equal(signif(p.score.obj$ps.lower[1], 7), 0)
   expect_equal(signif(p.score.obj$ps.upper[2], 7), 0.004329004)
   expect_equal(signif(p.score.obj$ps.lower[2], 7), 0)
+  expect_equal(p.score.obj$worst, 6)
+})
+
+test_that("p-score function works on small imbalanced barbell graph.", {
+  # Compute p-scores on a 3-clique next to a 5-clique, connected by an edge.
+  # Some constant values:
+  #   C' has 5 * 4 + 1 = 21 stubs.
+  #   C  has 1 outgoing stubs.
+  #   Removing node 6 from {6, 7, 8} adds 2 outgoing stubs to C but removes 1.
+  #   Removing either 7 or 8 adds 2 outgoing stubs to C.
+  #   Every node also has 2 outgoing stubs.
+  #   So the p-score for 6 should be:
+  #     phyper(2 - 1, 2, 21, 3, lower.tail=FALSE) = 0.01185771
+  #   And the p-score for 7 and 8 should be:
+  #     phyper(2 - 1, 3, 21, 2, lower.tail=FALSE) = 0.01086957
+  #   ...with lower bounds of zero for both, since:
+  #     1. for node 6 you can only get 2 white balls (even though it has degree 3)
+  #     2. for node 7/8 you can get 3 white balls but each only has degree 2.
+  toy.graph <- AddClique(3, AddClique(5))
+  toy.graph <- rbind(toy.graph, matrix(c(5, 6), ncol=2))
+  graph.stats <- ComputeGraphStatistics(toy.graph)
+  p.score.obj <- .GetPscoreObject(comm=6:8, graph.stats$adj, toy.graph,
+                                  graph.stats$d, graph.stats$N, graph.stats$M)
+  expect_equal(signif(p.score.obj$ps.upper[1], 7), 0.01185771)
+  expect_equal(signif(p.score.obj$ps.lower[1], 7), 0)
+  expect_equal(signif(p.score.obj$ps.upper[2], 7), 0.01086957)
+  expect_equal(signif(p.score.obj$ps.lower[2], 7), 0)
+  expect_equal(p.score.obj$worst, 6)
 })
