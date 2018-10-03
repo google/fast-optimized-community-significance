@@ -42,6 +42,30 @@ MakeToyGraph <- function () {
   return(edges)
 }
 
+AddClique <- function (k, edges=NULL) {
+
+  if (is.null(edges)) {
+    N <- 0
+  } else {
+    N <- max(edges)
+  }
+
+  new.edges <- matrix(0, ncol=2, nrow=k * (k - 1) / 2)
+  counter <- 1
+  for (i in 1:(k - 1)) {
+    for (j in (i + 1):k) {
+      new.edges[counter, ] <- c(i + N, j + N)
+      counter <- counter + 1
+    }
+  }
+
+  if (is.null(edges)) {
+    return(new.edges)
+  } else {
+    return(rbind(edges, new.edges))
+  }
+} 
+
 ComputeGraphStatistics <- function (edges) {
   N <- max(edges[, c(1:2)])
   if (ncol(edges) == 2) {
@@ -89,4 +113,24 @@ test_that("p-score function works on small toy graph.", {
   expect_equal(signif(p.score.obj$ps.lower[1], 7), 0.1333333)
   expect_equal(signif(p.score.obj$ps.lower[2], 7), 0.03030303)
   expect_equal(p.score.obj$worst, 2)
+})
+
+test_that("p-score function works on small clique graph.", {
+  # Compute p-scores on a 3-clique next to a 5-clique.
+  # Some constant values:
+  #   C' has 5 * 4 = 20 stubs.
+  #   C  has 0 outgoing stubs.
+  #   Removing any nodes adds 2 outgoing stubs to C.
+  #   Every node also has 2 outgoing stubs.
+  #   So the p-scores should be identically:
+  #     phyper(2 - 1, 2, 20, 2, lower.tail=FALSE) = 0.004329004
+  #   ...with lower bounds of zero.
+  toy.graph <- AddClique(3, AddClique(5)) 
+  graph.stats <- ComputeGraphStatistics(toy.graph)
+  p.score.obj <- .GetPscoreObject(comm=6:8, graph.stats$adj, toy.graph,
+                                  graph.stats$d, graph.stats$N, graph.stats$M)
+  expect_equal(signif(p.score.obj$ps.upper[1], 7), 0.004329004)
+  expect_equal(signif(p.score.obj$ps.lower[1], 7), 0)
+  expect_equal(signif(p.score.obj$ps.upper[2], 7), 0.004329004)
+  expect_equal(signif(p.score.obj$ps.lower[2], 7), 0)
 })
