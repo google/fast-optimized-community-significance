@@ -11,67 +11,89 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# 
-#' Compute significance of a single community.
+
+#' Get Pscores for a community.
 #'
+#' @param observations (integer vector) Number of observed white balls.
+#' @param cross.edges (integer) number of possible white balls.
+#' @param outside.edges (integer) number of possible black balls.
+#' @param draws (integer vector of length(observations)) Possible draws.
+#' @param cross.edge.correction (integer or integer vector of length(observations)) Additions to #whites after removing nodes.
+.GetPscores <- function (observations, cross.edges, outside.edges, draws,
+                         cross.edge.correction=0) {
+  return(phyper(q=observations - 1,
+                m=cross.edges + cross.edge.correction,
+                # white balls: edges coming out of C, including those toward 
+                #              removed nodes, if applicable.
+                n=outside.edges,
+                # black balls: edges within or coming out of C'.
+                k=draws,
+                lower.tail=FALSE))
+}
+
+#' Get pscores for worst & 2nd-worst node, and index of worst node.
+#
 #' @param comm (integer) The community.
 #' @param adjG (dgCMatrix) The adjacency matrix of the network.
 #' @param edges (integer matrix) The edgelist of the network.
 #' @param d (integer) The degree vector of the network.
 #' @param N (integer) The number of nodes in the network.
 #' @param m (integer) Twice the number of edges in the network.
-#' @param nrand (integer, default: 100) Number of random choices of the p-scores.
-.fScore <- function (comm, adjG, edges, d, N, m, nrand) { 
+
+.GetPscoreObject <- function (comm, adjG, edges, d, N, m) {
 
   # Compute basic values.
   d_u_Cs <- Matrix::colSums(adjG[comm, ])
   d_u_Cprimes <- d - d_u_Cs
   d_C <- sum(d[comm])
+  d_Cprime <- sum(d) - d_C
   d_C_C <- sum(d_u_Cs[comm])
   d_C_Cprime <- d_C - d_C_C
   d_Cprime_Cprime <- sum(d) - d_C - d_C_Cprime
   NC <- length(comm)
   
   # Compute p-scores.
-  pScores <- phyper(q=d_u_Cs[comm] - 1,
-                    m=d_C_Cprime - d_u_Cprimes[comm],  
-                      # white balls: edges coming out of C.
-                      # subtraction removes out-degree of community nodes.
-                    n=d_Cprime_Cprime + d_u_Cprimes[comm], 
-                      # black balls: edges totally outside C.
-                      # addition adds in out-degree of community nodes.
-                    k=d[comm],
-                    lower.tail=FALSE)
+  p.scores <- .GetPscores(observations=d_u_Cs[comm], cross.edges=d_C_Cprime,
+                          outside.edges=d_Cprime, draws=d[comm],
+                          cross.edge.correction=d_u_Cs[comm] - d_u_Cprimes[comm])
 
   # Find worst node indexs.
-  pScoresOrd <- order(pScores, decreasing=TRUE)
-  w <- comm[pScoresOrd[1]]
-  v <- comm[pScoresOrd[2]]
+  p.scores.ord <- order(p.scores, decreasing=TRUE)
+  w <- comm[p.scores.ord[1]]
+  v <- comm[p.scores.ord[2]]
 
+  # Re-compute p-scores for w & v, and their upper bounds.
+  ps.upper <- .GetPscores(observations=d_u_Cs[c(w, v)], cross.edges=d_C_Cprime,
+                          outside.edges=d_Cprime, draws=d[c(w, v)],
+                          cross.edge.correction=d_u_Cs[c(w, v)] - d_u_Cprimes[c(w, v)])
+  ps.lower <- .GetPscores(observations=d_u_Cs[c(w, v)] + 1, cross.edges=d_C_Cprime,
+                          outside.edges=d_Cprime, draws=d[c(w, v)],
+                          cross.edge.correction=d_u_Cs[c(w, v)] - d_u_Cprimes[c(w, v)])
 
-  # Compute lower/upper pScore bounds for w and v with w removed.
-  pU <- phyper(d_u_Cs[c(w, v)] - 1, 
-               d_C_Cprime - d_u_Cprimes[w],
-               d_Cprime_Cprime + d_u_Cprimes[w],
-               d[c(w, v)], lower.tail=FALSE)
-  pL <- phyper(d_u_Cs[c(w, v)], 
-               d_C_Cprime - d_u_Cprimes[w],
-               d_Cprime_Cprime + d_u_Cprimes[w],
-               d[c(w, v)], lower.tail=FALSE)
+  return(list(worst=w, ps.upper=ps.upper, ps.lower=ps.lower)) 
+}
 
-  # Get random pscores and compute test.
+#' Compute significance of a single community.
+#'
+#' params inherit from .GetPscoreObject.
+.fScore <- function (comm, adjG, edges, d, N, m, nrand) { 
+ 
+ ps.object <- .GetPscoreObject(comm, adjG, edges, d, N, m, nrand)
+ NC <- length(comm)
+
+ # Get random pscores and compute test.
   cs <- numeric(nrand)
   for (counter in 1:nrand) {    
-    pRand <- runif(2, pL, pU)
-    if (pRand[1] > pRand[2]) {
-      cs[counter] <- 1 - ((1 - pRand[1]) / (1 - pRand[2]))^(N - NC + 1)
+    p.rand <- runif(2, ps.object$ps.lower, ps.object$ps.upper)
+    if (p.rand[1] > p.rand[2]) {
+      cs[counter] <- 1 - ((1 - p.rand[1]) / (1 - p.rand[2]))^(N - NC + 1)
     } else {
-      cs[counter] <- 1 - ((1 - pRand[2]) / (1 - pRand[1]))^(N - NC + 1)
+      cs[counter] <- 1 - ((1 - p.rand[2]) / (1 - p.rand[1]))^(N - NC + 1)
     }
   }
 
   # Return.
-  return(list(scores=cs, worst=w))
+  return(list(scores=cs, worst=ps.object$worst))
 }
 
 #' FOCS backend.
@@ -105,6 +127,7 @@
   return(median(minFScores))
 }
 
+
 #' Run FOCS significance computation on a list of communities.
 #'
 #' @param community_list (list of int vectors) List of communities to compute significance of.
@@ -122,8 +145,7 @@ FOCS <- function (community_list, edges, p=0.25, nrand=100) {
   adj <- Matrix::sparseMatrix(i=edges[, 1], j=edges[, 2],
                               x=values, dims=c(N, N), symmetric=TRUE)
   d <- Matrix::colSums(adj)
-  N <- length(d)
-  m <- nrow(edges)
+  m <- sum(d) / 2
   scores <- lapply(community_list, .focs, adj, edges, d, N, m, p, nrand)
   return(scores)
 }
