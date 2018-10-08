@@ -104,6 +104,7 @@ test_that("p-score function works on small toy graph.", {
   # of those p-scores are:
   #         phyper(5, 6, 4, 8, lower.tail=FALSE) = 0.1333333 (for b)
   #         phyper(5, 8, 4, 6, lower.tail=FALSE) = 0.03030303 (for c)
+  # The first p-score is largest, so worst = 1.
   toy.graph <- MakeToyGraph() 
   graph.stats <- ComputeGraphStatistics(toy.graph)
   p.score.obj <- .GetPscoreObject(comm=2:4, graph.stats$adj, toy.graph,
@@ -112,7 +113,7 @@ test_that("p-score function works on small toy graph.", {
   expect_equal(signif(p.score.obj$ps.upper[2], 7), 0.2727273)
   expect_equal(signif(p.score.obj$ps.lower[1], 7), 0.1333333)
   expect_equal(signif(p.score.obj$ps.lower[2], 7), 0.03030303)
-  expect_equal(p.score.obj$worst, 2)
+  expect_equal(p.score.obj$worst, 1)
 })
 
 test_that("p-score function works on small clique graph.", {
@@ -125,6 +126,7 @@ test_that("p-score function works on small clique graph.", {
   #   So the p-scores should be identically:
   #     phyper(2 - 1, 2, 20, 2, lower.tail=FALSE) = 0.004329004
   #   ...with lower bounds of zero.
+  # The p-scores are tied, so worst = 1. 
   toy.graph <- AddClique(3, AddClique(5)) 
   graph.stats <- ComputeGraphStatistics(toy.graph)
   p.score.obj <- .GetPscoreObject(comm=6:8, graph.stats$adj, toy.graph,
@@ -133,7 +135,7 @@ test_that("p-score function works on small clique graph.", {
   expect_equal(signif(p.score.obj$ps.lower[1], 7), 0)
   expect_equal(signif(p.score.obj$ps.upper[2], 7), 0.004329004)
   expect_equal(signif(p.score.obj$ps.lower[2], 7), 0)
-  expect_equal(p.score.obj$worst, 6)
+  expect_equal(p.score.obj$worst, 1)
 })
 
 test_that("p-score function works on small imbalanced barbell graph.", {
@@ -151,6 +153,7 @@ test_that("p-score function works on small imbalanced barbell graph.", {
   #   ...with lower bounds of zero for both, since:
   #     1. for node 6 you can only get 2 white balls (even though it has degree 3)
   #     2. for node 7/8 you can get 3 white balls but each only has degree 2.
+  # The p-scores are tied, so worst = 1.
   toy.graph <- AddClique(3, AddClique(5))
   toy.graph <- rbind(toy.graph, matrix(c(5, 6), ncol=2))
   graph.stats <- ComputeGraphStatistics(toy.graph)
@@ -160,5 +163,5 @@ test_that("p-score function works on small imbalanced barbell graph.", {
   expect_equal(signif(p.score.obj$ps.lower[1], 7), 0)
   expect_equal(signif(p.score.obj$ps.upper[2], 7), 0.01086957)
   expect_equal(signif(p.score.obj$ps.lower[2], 7), 0)
-  expect_equal(p.score.obj$worst, 6)
+  expect_equal(p.score.obj$worst, 1)
 })

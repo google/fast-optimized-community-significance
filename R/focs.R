@@ -39,35 +39,32 @@
 #' @param d (integer) The degree vector of the network.
 #' @param N (integer) The number of nodes in the network.
 #' @param m (integer) Twice the number of edges in the network.
-
 .GetPscoreObject <- function (comm, adjG, edges, d, N, m) {
 
   # Compute basic values.
-  d_u_Cs <- Matrix::colSums(adjG[comm, ])
-  d_u_Cprimes <- d - d_u_Cs
+  d_u_Cs <- Matrix::rowSums(adjG[comm, comm])
+  d_u_Cprimes <- d[comm] - d_u_Cs
   d_C <- sum(d[comm])
   d_Cprime <- sum(d) - d_C
-  d_C_C <- sum(d_u_Cs[comm])
+  d_C_C <- sum(d_u_Cs)
   d_C_Cprime <- d_C - d_C_C
-  d_Cprime_Cprime <- sum(d) - d_C - d_C_Cprime
-  NC <- length(comm)
   
   # Compute p-scores.
-  p.scores <- .GetPscores(observations=d_u_Cs[comm], cross.edges=d_C_Cprime,
+  p.scores <- .GetPscores(observations=d_u_Cs, cross.edges=d_C_Cprime,
                           outside.edges=d_Cprime, draws=d[comm],
-                          cross.edge.correction=d_u_Cs[comm] - d_u_Cprimes[comm])
+                          cross.edge.correction=d_u_Cs - d_u_Cprimes)
 
   # Find worst node indexs.
   p.scores.ord <- order(p.scores, decreasing=TRUE)
-  w <- comm[p.scores.ord[1]]
-  v <- comm[p.scores.ord[2]]
+  w <- p.scores.ord[1]
+  v <- p.scores.ord[2]
 
   # Re-compute p-scores for w & v, and their upper bounds.
   ps.upper <- .GetPscores(observations=d_u_Cs[c(w, v)], cross.edges=d_C_Cprime,
-                          outside.edges=d_Cprime, draws=d[c(w, v)],
+                          outside.edges=d_Cprime, draws=d[comm[c(w, v)]],
                           cross.edge.correction=d_u_Cs[c(w, v)] - d_u_Cprimes[c(w, v)])
   ps.lower <- .GetPscores(observations=d_u_Cs[c(w, v)] + 1, cross.edges=d_C_Cprime,
-                          outside.edges=d_Cprime, draws=d[c(w, v)],
+                          outside.edges=d_Cprime, draws=d[comm[c(w, v)]],
                           cross.edge.correction=d_u_Cs[c(w, v)] - d_u_Cprimes[c(w, v)])
 
   return(list(worst=w, ps.upper=ps.upper, ps.lower=ps.lower)) 
@@ -78,7 +75,7 @@
 #' params inherit from .GetPscoreObject.
 .fScore <- function (comm, adjG, edges, d, N, m, nrand) { 
  
- ps.object <- .GetPscoreObject(comm, adjG, edges, d, N, m, nrand)
+ ps.object <- .GetPscoreObject(comm, adjG, edges, d, N, m)
  NC <- length(comm)
 
  # Get random pscores and compute test.
