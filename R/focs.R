@@ -165,6 +165,8 @@
   
   if (!is.null(Unodes)) {
     Vnodes <- setdiff(1:N, Unodes)
+  } else {
+    Vnodes <- NULL
   }
   k <- round(length(comm) * p)
   if (k == 0) {
