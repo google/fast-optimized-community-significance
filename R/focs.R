@@ -67,13 +67,68 @@
                           outside.edges=d_Cprime, draws=d[comm[c(w, v)]],
                           cross.edge.correction=d_u_Cs[c(w, v)] - d_u_Cprimes[c(w, v)])
 
-  return(list(worst=w, ps.upper=ps.upper, ps.lower=ps.lower)) 
+  return(list(worst=comm[w], ps.upper=ps.upper, ps.lower=ps.lower)) 
+}
+
+#' Get pscores for worst & 2nd-worst node, and index of worst node (bipartite version).
+#
+#' @param Unodes (integer vector) nodes on the U side.
+#' @param Vnodes (integer vector) nodes on the V side.
+#' other params inherit from .GetPscoreObject.
+.GetPscoreObjectBipartite <- function (comm, adjG, edges, d, N, m, Unodes, Vnodes) {
+
+  # Compute basic values.
+  d_u_Cs <- Matrix::rowSums(adjG[comm, comm])
+  d_u_Cprimes <- d[comm] - d_u_Cs
+  
+  # Compute p.scores for each side.
+  sides <- list(Unodes, Vnodes)
+  p.scores <- numeric(length(comm))
+  for (i in 1:2) {
+    comm.side <- intersect(sides[[i]], comm)
+    comm.aside <- intersect(sides[[3 - i]], comm)
+    comm.side.match <- match(comm.side, comm)
+    d_Cprime <- m - sum(d[comm.aside])
+    d_C_Cprime <- sum(d[comm.aside]) - sum(d_u_Cs[comm.side.match])
+    p.scores[comm.side.match] <- .GetPscores(
+        observations=d_u_Cs[comm.side.match], cross.edges=d_C_Cprime,
+        outside.edges=d_Cprime, draws=d[comm.side],
+        cross.edge.correction=d_u_Cs[comm.side.match])
+  }
+
+  # Find worst node indexs.
+  p.scores.ord <- order(p.scores, decreasing=TRUE)
+  w <- p.scores.ord[1]
+  v <- p.scores.ord[2]
+
+  # Re-compute p-scores for w & v, and their upper bounds.
+  ps.upper <- ps.lower <- numeric(2)
+  choice.nodes <- c(w, v)
+  for (i in 1:2) {
+    for (j in 1:2) {
+      comm.side <- intersect(sides[[i]], comm)
+      comm.aside <- intersect(sides[[3 - i]], comm)
+      comm.side.match <- match(comm.side, comm)
+      if (choice.nodes[j] %in% comm.side.match) {
+        d_Cprime <- m - sum(d[comm.aside])
+        d_C_Cprime <- sum(d[comm.aside]) - sum(d_u_Cs[comm.side.match]) 
+        ps.upper[j] <- .GetPscores(observations=d_u_Cs[choice.nodes[j]], cross.edges=d_C_Cprime,
+                                   outside.edges=d_Cprime, draws=d[comm[choice.nodes[j]]],
+                                   cross.edge.correction=d_u_Cs[choice.nodes[j]])
+        ps.lower[j] <- .GetPscores(observations=d_u_Cs[choice.nodes[j]] + 1, cross.edges=d_C_Cprime,
+                                   outside.edges=d_Cprime, draws=d[comm[choice.nodes[j]]],
+                                   cross.edge.correction=d_u_Cs[choice.nodes[j]])
+      }
+    }
+  } 
+  return(list(worst=comm[w], ps.upper=ps.upper, ps.lower=ps.lower)) 
 }
 
 #' Compute significance of a single community.
 #'
 #' params inherit from .GetPscoreObject.
-.fScore <- function (comm, adjG, edges, d, N, m, nrand) { 
+.fScore <- function (comm, adjG, edges, d, N, m, nrand, 
+                     Unodes=NULL, Vnodes=NULL) { 
  
  ps.object <- .GetPscoreObject(comm, adjG, edges, d, N, m)
  NC <- length(comm)
@@ -102,13 +157,15 @@
 #' @param N (integer) The number of nodes in the network.
 #' @param m (integer) Twice the number of edges in the network.
 #' @param p (double, default: 0.25) Proportion of community to use as the border.
-#' @param nrand (integer, default: 100) Number of random choices of the p-scores.
-.focs <- function (comm, adjG, edges, d, N, m, p=0.25, nrand=100) { 
+#' @param Unodes (integer vector, default: NULL) Node list of U-side nodes. If supplied, bipartite analysis is assumed.
+.focs <- function (comm, adjG, edges, d, N, m, p=0.25, nrand=100, Unodes=NULL) {
   if (length(comm) < 3) {
     return(1)
   }
   
-  nodes <- 1:N
+  if (!is.null(Unodes)) {
+    Vnodes <- setdiff(1:N, Unodes)
+  }
   k <- round(length(comm) * p)
   if (k == 0) {
     k <- 1
@@ -116,7 +173,7 @@
   fMat <- matrix(0, nrow=nrand, ncol=k)
 
   for (i in 1:k) {
-    fScoreList <- .fScore(comm, adjG, edges, d, N, m, nrand)
+    fScoreList <- .fScore(comm, adjG, edges, d, N, m, nrand, Unodes, Vnodes)
     fMat[, i] <- fScoreList$scores
     comm <- setdiff(comm, fScoreList$worst)
   }
@@ -131,8 +188,9 @@
 #' @param edges (2/3-column integer matrix) Rows are edge indexes and (optionally) edge weight.
 #' @param p (double, default: 0.25) Proportion of community to use as the border.
 #' @param nrand (integer, default: 100) Number of random choices of the p-scores.
+#' @param Unodes (integer vector, default: NULL) Node list of U-side nodes. If supplied, bipartite analysis is assumed.
 #' @export
-FOCS <- function (community_list, edges, p=0.25, nrand=100) {
+FOCS <- function (community_list, edges, p=0.25, nrand=100, Unodes=NULL) {
   N <- max(edges[, c(1:2)])
   if (ncol(edges) == 2) {
     values <- rep(1, nrow(edges))
@@ -143,6 +201,6 @@ FOCS <- function (community_list, edges, p=0.25, nrand=100) {
                               x=values, dims=c(N, N), symmetric=TRUE)
   d <- Matrix::colSums(adj)
   m <- sum(d) / 2
-  scores <- lapply(community_list, .focs, adj, edges, d, N, m, p, nrand)
+  scores <- lapply(community_list, .focs, adj, edges, d, N, m, p, nrand, Unodes)
   return(scores)
 }
