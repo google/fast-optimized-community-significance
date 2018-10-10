@@ -1,11 +1,11 @@
 # Copyright 2018 Google LLC
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     https://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -23,7 +23,7 @@
                          cross.edge.correction=0) {
   return(phyper(q=observations - 1,
                 m=cross.edges + cross.edge.correction,
-                # white balls: edges coming out of C, including those toward 
+                # white balls: edges coming out of C, including those toward
                 #              removed nodes, if applicable.
                 n=outside.edges,
                 # black balls: edges within or coming out of C'.
@@ -48,7 +48,7 @@
   d_Cprime <- sum(d) - d_C
   d_C_C <- sum(d_u_Cs)
   d_C_Cprime <- d_C - d_C_C
-  
+
   # Compute p-scores.
   p.scores <- .GetPscores(observations=d_u_Cs, cross.edges=d_C_Cprime,
                           outside.edges=d_Cprime, draws=d[comm],
@@ -67,7 +67,7 @@
                           outside.edges=d_Cprime, draws=d[comm[c(w, v)]],
                           cross.edge.correction=d_u_Cs[c(w, v)] - d_u_Cprimes[c(w, v)])
 
-  return(list(worst=comm[w], ps.upper=ps.upper, ps.lower=ps.lower)) 
+  return(list(worst=comm[w], ps.upper=ps.upper, ps.lower=ps.lower))
 }
 
 #' Get pscores for worst & 2nd-worst node, and index of worst node (bipartite version).
@@ -76,11 +76,14 @@
 #' @param Vnodes (integer vector) nodes on the V side.
 #' other params inherit from .GetPscoreObject.
 .GetPscoreObjectBipartite <- function (comm, adjG, edges, d, N, m, Unodes, Vnodes) {
+  if (mean(comm %in% Unodes) %in% c(0, 1)) {
+    return(list(worst=sample(comm, 1), ps.upper=rep(1, 2), ps.lower=rep(1, 2)))
+  }
 
   # Compute basic values.
   d_u_Cs <- Matrix::rowSums(adjG[comm, comm])
   d_u_Cprimes <- d[comm] - d_u_Cs
-  
+
   # Compute p.scores for each side.
   sides <- list(Unodes, Vnodes)
   p.scores <- numeric(length(comm))
@@ -111,7 +114,7 @@
       comm.side.match <- match(comm.side, comm)
       if (choice.nodes[j] %in% comm.side.match) {
         d_Cprime <- m - sum(d[comm.aside])
-        d_C_Cprime <- sum(d[comm.aside]) - sum(d_u_Cs[comm.side.match]) 
+        d_C_Cprime <- sum(d[comm.aside]) - sum(d_u_Cs[comm.side.match])
         ps.upper[j] <- .GetPscores(observations=d_u_Cs[choice.nodes[j]], cross.edges=d_C_Cprime,
                                    outside.edges=d_Cprime, draws=d[comm[choice.nodes[j]]],
                                    cross.edge.correction=d_u_Cs[choice.nodes[j]])
@@ -120,22 +123,27 @@
                                    cross.edge.correction=d_u_Cs[choice.nodes[j]])
       }
     }
-  } 
-  return(list(worst=comm[w], ps.upper=ps.upper, ps.lower=ps.lower)) 
+  }
+  return(list(worst=comm[w], ps.upper=ps.upper, ps.lower=ps.lower))
 }
 
 #' Compute significance of a single community.
 #'
 #' params inherit from .GetPscoreObject.
-.fScore <- function (comm, adjG, edges, d, N, m, nrand, 
-                     Unodes=NULL, Vnodes=NULL) { 
- 
- ps.object <- .GetPscoreObject(comm, adjG, edges, d, N, m)
- NC <- length(comm)
+.fScore <- function (comm, adjG, edges, d, N, m, nrand,
+                     Unodes=NULL, Vnodes=NULL) {
 
- # Get random pscores and compute test.
+  if (is.null(Unodes)) {
+    ps.object <- .GetPscoreObject(comm, adjG, edges, d, N, m)
+  } else {
+    ps.object <- .GetPscoreObjectBipartite(comm, adjG, edges, d, N, m,
+                                           Unodes, Vnodes)
+  }
+  NC <- length(comm)
+
+  # Get random pscores and compute test.
   cs <- numeric(nrand)
-  for (counter in 1:nrand) {    
+  for (counter in 1:nrand) {
     p.rand <- runif(2, ps.object$ps.lower, ps.object$ps.upper)
     if (p.rand[1] > p.rand[2]) {
       cs[counter] <- 1 - ((1 - p.rand[1]) / (1 - p.rand[2]))^(N - NC + 1)
@@ -162,11 +170,11 @@
   if (length(comm) < 3) {
     return(1)
   }
-  
-  if (!is.null(Unodes)) {
-    Vnodes <- setdiff(1:N, Unodes)
-  } else {
+
+  if (is.null(Unodes)) {
     Vnodes <- NULL
+  } else {
+    Vnodes <- setdiff(1:N, Unodes)
   }
   k <- round(length(comm) * p)
   if (k == 0) {
