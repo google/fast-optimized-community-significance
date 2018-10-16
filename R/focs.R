@@ -127,6 +127,18 @@
   return(list(worst=comm[w], ps.upper=ps.upper, ps.lower=ps.lower))
 }
 
+#' Helper function to compute score to high precision.
+score.computer <- function(p1, p2, N, NC) {
+  n <- (N - NC + 1)
+  if (p1 * n < 0.01 && p2 * n < 0.01) {
+    num <- 1 - n * p1 + n * (n - 1) * p1^2 / 2
+    den <- 1 - n * p2 + n * (n - 1) * p2^2 / 2
+    return(1 - num / den)
+  } else {
+    return(1 - ((1 - p1) / (1 - p2))^n)
+  }
+}
+
 #' Compute significance of a single community.
 #'
 #' params inherit from .GetPscoreObject.
@@ -146,9 +158,9 @@
   for (counter in 1:nrand) {
     p.rand <- runif(2, ps.object$ps.lower, ps.object$ps.upper)
     if (p.rand[1] > p.rand[2]) {
-      cs[counter] <- 1 - ((1 - p.rand[1]) / (1 - p.rand[2]))^(N - NC + 1)
+      cs[counter] <- score.computer(p.rand[1], p.rand[2], N, NC)
     } else {
-      cs[counter] <- 1 - ((1 - p.rand[2]) / (1 - p.rand[1]))^(N - NC + 1)
+      cs[counter] <- score.computer(p.rand[2], p.rand[1], N, NC)
     }
   }
 
@@ -214,3 +226,4 @@ FOCS <- function (community_list, edges, p=0.25, nrand=100, Unodes=NULL) {
   scores <- lapply(community_list, .focs, adj, edges, d, N, m, p, nrand, Unodes)
   return(scores)
 }
+
